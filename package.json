@@ -1,6 +1,6 @@
 {
   "name": "@tananetwork/auth",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "JWT authentication utilities for Tana using Ed25519 signatures",
   "main": "src/index.ts",

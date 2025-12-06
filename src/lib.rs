@@ -117,8 +117,8 @@ pub fn verify_jwt(jwt: &str, public_key_hex: &str) -> Result<JsValue, JsValue> {
     serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
-/// Internal implementation of JWT creation
-fn create_jwt_impl(
+/// Internal implementation of JWT creation (also used for native Rust)
+pub fn create_jwt_impl(
     private_key_hex: &str,
     username: &str,
     network: &str,
@@ -181,8 +181,8 @@ fn create_jwt_impl(
     Ok(format!("{}.{}.{}", header_b64, payload_b64, signature_b64))
 }
 
-/// Internal implementation of JWT verification
-fn verify_jwt_impl(jwt: &str, public_key_hex: &str) -> JwtValidation {
+/// Internal implementation of JWT verification (also used for native Rust)
+pub fn verify_jwt_impl(jwt: &str, public_key_hex: &str) -> JwtValidation {
     // Split JWT into parts
     let parts: Vec<&str> = jwt.split('.').collect();
     if parts.len() != 3 {

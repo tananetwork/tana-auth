@@ -1,6 +1,6 @@
 [package]
 name = "tana-auth"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Tana Network"]
 description = "Authentication and JWT utilities for Tana with Ed25519 signatures"
