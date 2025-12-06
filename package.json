@@ -1,0 +1,33 @@
+{
+  "name": "@tananetwork/auth",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "JWT authentication utilities for Tana using Ed25519 signatures",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@tananetwork/crypto": "^0.2.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tananetwork/tana-auth"
+  },
+  "keywords": [
+    "tana",
+    "auth",
+    "jwt",
+    "ed25519",
+    "blockchain",
+    "authentication"
+  ],
+  "author": "Tana Network",
+  "license": "MIT OR Apache-2.0"
+}
