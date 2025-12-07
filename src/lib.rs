@@ -31,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use ed25519_dalek::{Signer, Verifier, SigningKey, VerifyingKey, Signature};
 use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use tana_crypto::{pubkey_to_address, NetworkType};
 
 /// JWT claims for Tana authentication
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +40,8 @@ pub struct JwtClaims {
     pub sub: String,
     /// Network identifier (e.g., 'testnet.tana.network', 'mainnet.tana.network')
     pub net: String,
+    /// Address (derived from public key)
+    pub adr: String,
     /// Issued at (Unix timestamp)
     pub iat: i64,
     /// Expiration (Unix timestamp)
@@ -53,6 +56,7 @@ pub struct JwtValidation {
     pub valid: bool,
     pub username: Option<String>,
     pub network: Option<String>,
+    pub address: Option<String>,
     pub issued_at: Option<i64>,
     pub expires_at: Option<i64>,
     pub error: Option<String>,
@@ -141,6 +145,22 @@ pub fn create_jwt_impl(
 
     let signing_key = SigningKey::from_bytes(&key_bytes.try_into().unwrap());
 
+    // Derive public key and address
+    let verifying_key = signing_key.verifying_key();
+    let pubkey_bytes = verifying_key.to_bytes();
+    let pubkey_hex = format!("ed25519_{}", hex_encode(&pubkey_bytes));
+
+    // Determine network type for address derivation
+    let network_type = if network.contains("mainnet") || network == "tana.network" {
+        NetworkType::Mainnet
+    } else {
+        NetworkType::Testnet
+    };
+
+    // Derive address from public key
+    let address_info = pubkey_to_address(&pubkey_hex, network_type)
+        .map_err(|e| format!("Failed to derive address: {}", e))?;
+
     // Create JWT claims
     let now = current_timestamp();
     let expiry = now + (expiry_days as i64 * 86400); // days to seconds
@@ -148,6 +168,7 @@ pub fn create_jwt_impl(
     let claims = JwtClaims {
         sub: username.to_string(),
         net: network.to_string(),
+        adr: address_info.address,
         iat: now,
         exp: expiry,
         iss: "self".to_string(),
@@ -192,6 +213,7 @@ pub fn verify_jwt_impl(jwt: &str, public_key_hex: &str) -> JwtValidation {
             network: None,
             issued_at: None,
             expires_at: None,
+            address: None,
             error: Some("Invalid JWT format (expected 3 parts)".to_string()),
         };
     }
@@ -208,7 +230,8 @@ pub fn verify_jwt_impl(jwt: &str, public_key_hex: &str) -> JwtValidation {
                 network: None,
                 issued_at: None,
                 expires_at: None,
-                error: Some("Invalid base64 in payload".to_string()),
+                address: None,
+            error: Some("Invalid base64 in payload".to_string()),
             };
         }
     };
@@ -222,7 +245,8 @@ pub fn verify_jwt_impl(jwt: &str, public_key_hex: &str) -> JwtValidation {
                 network: None,
                 issued_at: None,
                 expires_at: None,
-                error: Some("Invalid JSON in payload".to_string()),
+                address: None,
+            error: Some("Invalid JSON in payload".to_string()),
             };
         }
     };
@@ -236,6 +260,7 @@ pub fn verify_jwt_impl(jwt: &str, public_key_hex: &str) -> JwtValidation {
             network: Some(claims.net),
             issued_at: Some(claims.iat),
             expires_at: Some(claims.exp),
+            address: None,
             error: Some("JWT expired".to_string()),
         };
     }
@@ -250,7 +275,8 @@ pub fn verify_jwt_impl(jwt: &str, public_key_hex: &str) -> JwtValidation {
                 network: Some(claims.net),
                 issued_at: Some(claims.iat),
                 expires_at: Some(claims.exp),
-                error: Some("Invalid base64 in signature".to_string()),
+                address: None,
+            error: Some("Invalid base64 in signature".to_string()),
             };
         }
     };
@@ -264,7 +290,8 @@ pub fn verify_jwt_impl(jwt: &str, public_key_hex: &str) -> JwtValidation {
                 network: Some(claims.net),
                 issued_at: Some(claims.iat),
                 expires_at: Some(claims.exp),
-                error: Some("Invalid signature format".to_string()),
+                address: None,
+            error: Some("Invalid signature format".to_string()),
             };
         }
     };
@@ -285,7 +312,8 @@ pub fn verify_jwt_impl(jwt: &str, public_key_hex: &str) -> JwtValidation {
                 network: Some(claims.net),
                 issued_at: Some(claims.iat),
                 expires_at: Some(claims.exp),
-                error: Some("Invalid public key hex format".to_string()),
+                address: None,
+            error: Some("Invalid public key hex format".to_string()),
             };
         }
     };
@@ -299,7 +327,8 @@ pub fn verify_jwt_impl(jwt: &str, public_key_hex: &str) -> JwtValidation {
                 network: Some(claims.net),
                 issued_at: Some(claims.iat),
                 expires_at: Some(claims.exp),
-                error: Some("Invalid public key".to_string()),
+                address: None,
+            error: Some("Invalid public key".to_string()),
             };
         }
     };
@@ -320,6 +349,7 @@ pub fn verify_jwt_impl(jwt: &str, public_key_hex: &str) -> JwtValidation {
             network: Some(claims.net),
             issued_at: Some(claims.iat),
             expires_at: Some(claims.exp),
+            address: Some(claims.adr.clone()),
             error: None,
         },
         Err(_) => JwtValidation {
@@ -328,6 +358,7 @@ pub fn verify_jwt_impl(jwt: &str, public_key_hex: &str) -> JwtValidation {
             network: Some(claims.net),
             issued_at: Some(claims.iat),
             expires_at: Some(claims.exp),
+            address: None,
             error: Some("Signature verification failed".to_string()),
         },
     }
@@ -350,7 +381,8 @@ fn current_timestamp() -> i64 {
 
 /// Native Rust API (not exposed to WASM)
 impl JwtClaims {
-    /// Create claims for a user
+    /// Create claims for a user (deprecated - cannot derive address without private key)
+    #[deprecated(note = "Use create_jwt_impl() instead which derives address from private key")]
     pub fn new(username: &str, network: &str, expiry_days: u32) -> Self {
         let now = current_timestamp();
         let expiry = now + (expiry_days as i64 * 86400);
@@ -358,6 +390,7 @@ impl JwtClaims {
         Self {
             sub: username.to_string(),
             net: network.to_string(),
+            adr: "DEPRECATED".to_string(), // Cannot derive address without private key
             iat: now,
             exp: expiry,
             iss: "self".to_string(),
@@ -384,6 +417,15 @@ mod hex {
             })
             .collect()
     }
+
+    pub fn encode(bytes: &[u8]) -> String {
+        bytes.iter().map(|b| format!("{:02x}", b)).collect()
+    }
+}
+
+/// Re-export hex_encode for use in create_jwt_impl
+fn hex_encode(bytes: &[u8]) -> String {
+    hex::encode(bytes)
 }
 
 #[cfg(test)]
